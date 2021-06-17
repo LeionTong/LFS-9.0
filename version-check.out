@@ -1,0 +1,29 @@
+[root@Lenovo-CentOS ~]# !bash
+bash version-check.sh
+bash, version 4.2.46(2)-release
+/bin/sh -> /usr/bin/bash
+Binutils: version 2.27-43.base.el7_8.1
+bison (GNU Bison) 3.0.4
+yacc is /usr/bin/yacc - 1.9 20130304
+bzip2,  Version 1.0.6, 6-Sept-2010.
+Coreutils:  8.22
+diff (GNU diffutils) 3.3
+find (GNU findutils) 4.5.11
+GNU Awk 4.0.2
+/usr/bin/awk -> /usr/bin/gawk
+gcc (GCC) 4.8.5 20150623 (Red Hat 4.8.5-44)
+g++ (GCC) 4.8.5 20150623 (Red Hat 4.8.5-44)
+(GNU libc) 2.17
+grep (GNU grep) 2.20
+gzip 1.5
+Linux version 3.10.0-1127.el7.x86_64 (mockbuild@kbuilder.bsys.centos.org) (gcc version 4.8.5 20150623 (Red Hat 4.8.5-39) (GCC) ) #1 SMP Tue Mar 31 23:36:51 UTC 2020
+m4 (GNU M4) 1.4.16
+GNU Make 3.82
+GNU patch 2.7.1
+Perl version='5.16.3';
+Python 3.6.8
+sed (GNU sed) 4.2.2
+tar (GNU tar) 1.26
+makeinfo (GNU texinfo) 5.1
+xz (XZ Utils) 5.2.2
+g++ compilation OK
