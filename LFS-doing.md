@@ -370,3 +370,24 @@ cd       build
 ```
 make && make install
 ```
+
+>>> 小心
+> 到了这里，必须停下来确认新工具链的基本功能(编译和链接)都是像预期的那样正常工作。
+> 运行下面的命令进行全面的检查：
+```
+echo 'int main(){}' > dummy.c
+$LFS_TGT-gcc dummy.c
+readelf -l a.out | grep ': /tools'
+```
+
+> 如果一切工作正常的话，这里应该没有错误，最后一个命令的输出形式会是：
+
+`[Requesting program interpreter: /tools/lib64/ld-linux-x86-64.so.2]`
+
+> 注意 32 位机器上对应的解释器名字是 /tools/lib/ld-linux.so.2。
+> 如果输出不是像上面那样或者根本就没有输出，那么可能某些地方出错了。调查并回溯这些步骤，找出问题所在并改正它。在继续之前必须解决这个问题。
+
+> 一旦一切都顺利，清理测试文件：
+```
+rm -v dummy.c a.out
+```
