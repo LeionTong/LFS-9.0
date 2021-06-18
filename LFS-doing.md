@@ -252,6 +252,7 @@ time {
 ## 5.5. GCC-9.2.0 - 第 1 遍
 
 ```
+cd $LFS/sources
 tar xvf gcc-9.2.0.tar.xz
 cd gcc-9.2.0
 ```
@@ -319,7 +320,53 @@ cd       build
     --disable-libvtv                               \
     --disable-libstdcxx                            \
     --enable-languages=c,c++
+```
 
+```
 make && make install
 ```
 
+## 5.6. Linux-5.2.8 API 头文件
+
+```
+cd $LFS/sources
+tar xvf linux-5.2.8.tar.xz
+cd linux-5.2.8
+```
+
+> 确认这里没有陈旧的文件且不依赖于之前的操作：
+```
+make mrproper
+```
+
+> 从源代码中提取用户可见的内核头文件。把他们保存在一个临时本地文件夹中然后复制到所需的位置
+```
+make INSTALL_HDR_PATH=dest headers_install
+cp -rv dest/include/* /tools/include
+```
+
+## 5.7. Glibc-2.30
+
+```
+cd $LFS/sources
+tar xvf glibc-2.30.tar.xz 
+cd glibc-2.30
+```
+> Glibc 手册建议在源文件夹之外的一个专用文件夹中编译 Glibc：
+```
+mkdir -v build
+cd       build
+```
+
+```
+../configure                             \
+      --prefix=/tools                    \
+      --host=$LFS_TGT                    \
+      --build=$(../scripts/config.guess) \
+      --enable-kernel=3.2                \
+      --with-headers=/tools/include
+```
+
+```
+make && make install
+```

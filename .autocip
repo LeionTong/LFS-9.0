@@ -1,0 +1,13 @@
+#! /bin/sh
+
+BRANCH_MASTER=main
+BRANCH_DEV=trail
+
+git checkout $BRANCH_DEV
+git add .
+git commit -am 'by .autocip'
+git push
+git checkout $BRANCH_MASTER
+git merge $BRANCH_DEV -m 'automerged by .autocip'
+git push
+git checkout $BRANCH_DEV
