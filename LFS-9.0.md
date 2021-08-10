@@ -3573,7 +3573,12 @@ cd gzip-1.10
 
 ```
 ./configure --prefix=/usr
-make && make check && make install
+make && make check
+```
+> 已知有两个测试在 LFS 环境中会失败：help-version 和 zmore。
+
+```
+make install
 mv -v /usr/bin/gzip /bin
 ```
 
@@ -3864,9 +3869,9 @@ EOF
 > 设置 set nocompatible 让 vim 比 vi 兼容模式更有用。删掉「no」以保留旧的 vi 特性。设置 set backspace=2 让退格跨越换行、自动缩进和插入的开始。syntax on 参数使 vim 能高亮显示语法。设置 set mouse 让你能在 chroot 和远程连接的时候用鼠标粘帖文本。最后，带有 set background=dark 的 if 语句矫正了 vim 对于某些终端模拟器的背景颜色的估算。这让某些写在黑色背景上的程序的高亮色能有更好的调色方案。
 
 > 用下面的命令可以获得其它选项的文档：
-```
-vim -c ':options'
-```
+> ```
+> vim -c ':options'
+> ```
 
 ```
 cd $LFS/sources
@@ -4226,9 +4231,7 @@ rm -rf lfs-bootscripts-20190524
 
 ## 7.3. 设备与模块管理概述
 
-早先的 Linux 不管硬件是否真实存在，都以创建静态设备的方法来处理硬件，因此需要在 /dev 目录下创建大量的设备节点文件（有时会有上千个）。这通常由 MAKEDEV 脚本完成，它通过大量调用 mknod 程序为这个世界上可能存在的每一个设备建立对应的主设备号和次设备号。
-
-而使用 udev 方法，只有当内核检测到硬件接入，才会建立对应的节点文件。因为需要在系统启动的时候重新建立设备节点文件，所以将它存储在 devtmpfs 文件系统中（完全存在于内存中的虚拟文件系统）。设备节点文件无需太多的空间，所以占用的内存也很小。
+使用 udev 方法，只有当内核检测到硬件接入，才会建立对应的节点文件。因为需要在系统启动的时候重新建立设备节点文件，所以将它存储在 devtmpfs 文件系统中（完全存在于内存中的虚拟文件系统）。设备节点文件无需太多的空间，所以占用的内存也很小。
 
 ## 7.4. 设备管理
 
@@ -4253,3 +4256,356 @@ bash /lib/udev/init-net-rules.sh
 ```
 cat /etc/udev/rules.d/70-persistent-net.rules
 ```
+
+>> Note
+>
+> 在某些特定情形下,如当一个 MAC 地址被手动指定给一个网卡或者如 Qemu 或 Xen 这样的虚拟环境时,可能并不会生成上述的网络规则文件。这是由于手动指定的 MAC 地址并不是永久固定的。在这种情况下,不能采用持久化命名方式来确定设备名称。
+
+这个文件应由一个注释段落开头。之后每个网卡都对应有两行信息。第一行以注释形式描述了该网卡的硬件信息（如果是 PCI 网卡，还有其 PCI 厂商标识和设备标识），如果对应的驱动程序存在，还应在随后的括号中注明。要注意，该注释行中的硬件标识和驱动程序都不能决定其接口名，仅做参考作用。第二行则是网卡的 udev 规则，根据该规则可以确定网卡的设备名称。
+
+udev 规则总的来说是由逗号或空格分割的若干键值对组成的，规则中的每一个键的解释如下所示：
+
+- SUBSYSTEM=="net" - 让 udev 忽略不是网卡的设备。
+
+- ACTION=="add" - 让 udev 对增加 uevent 以外的操作，忽略该规则（删除 uevent 和改变 uevent 也会发生，但都不会导致网络接口重新命名）。
+
+- DRIVERS=="?*" - 让 udev 忽略 VLAN 和桥接子接口。（由于这些子接口没有独立的驱动程序）。而且子接口的名称可能会与父接口的名字相冲突，因而会被忽略。
+
+- ATTR{address} - 该键值表示网卡的 MAC 地址。
+
+- ATTR{type}=="1" - 对于一些可能会产生多个虚拟接口的无线网卡驱动，该键用于确保规则只会应用于其首要接口。和之前的 VLAN 接口和桥接子接口的理由一样，次要接口会被忽略。
+
+- NAME - 这个键中的值将是 udev 指定给接口的名称。
+
+NAME 的健值相当重要。在进行操作之前，你已经为每一个网卡设备准备了一个名称，并且在之后的配置文件中使用对应的 NAME 键值。
+
+## 7.5. 通用网络配置
+
+### 7.5.1. 创建网络接口配置文件
+
+> 确定网卡接口的名称：
+
+`ip link` 或者 `ls /sys/class/net`
+
+```
+cd /etc/sysconfig/
+cat > ifconfig.enp7s0 << "EOF"
+ONBOOT=yes
+IFACE=enp7s0
+SERVICE=ipv4-static
+IP=172.18.253.20
+GATEWAY=172.18.253.1
+PREFIX=24
+BROADCAST=172.18.253.255
+EOF
+```
+> 这里按照自己实际网络情况进行配置。
+
+如果变量 ONBOOT 设置为「yes」则 System V 网络脚本将在系统启动期间激活网卡，如果设置为其他非「yes」值则不会自动激活网卡。但是你可以通过命令 ifup 和 ifdown 手动激活或者是禁用网卡。
+
+变量 IFACE 用于定义接口的名称，例如 eth0。所有的网络设备配置文件都依赖于它。文件扩展名必须与该值匹配。
+
+变量 SERVICE 定义了获取 IP 地址的方式。LFS-Bootscripts 包中有模块化的 IP 分配格式，且在文件夹 /lib/services/ 中建立文件以允许其他的 IP 获取方式。在 BLFS 书中，通常它被设置为动态主机配置协议（DHCP）。
+
+变量 GATEWAY 应该包括默认的网关 IP 地址。如果不需要，应该直接将这行注释掉。
+
+变量 PREFIX 表示子网所用的位数。IP 地址中每一个字节是 8 位。如果子网掩码是 255.255.255.0，那么就会使用最前面的 3 个字节（24位）表达网络号。如果子网掩码是 255.255.255.240，则使用最开始的 28 位。前缀如果大于 24 位，一般都用于 DSL 或者是有线 ISP。在此示例中（PREFIX=24），子网掩码是 255.255.255.0。根据你实际的指望调整此字段，如果省略此字段，则默认为 24。
+
+如欲获得更多信息，请浏览 ifup 的 man 手册。
+
+### 7.5.2. 创建 /etc/resolv.conf 文件
+
+如果系统连接到互联网，则需要通过 DNS（域名服务）将域名和 IP 地址进行相互的转换。
+
+```
+cat > /etc/resolv.conf << "EOF"
+# Begin /etc/resolv.conf
+
+domain search
+nameserver 114.114.114.114
+nameserver 8.8.8.8
+
+# End /etc/resolv.conf
+EOF
+```
+如果你只想要填写一个 DNS 服务器，那么将文件中的第二行 nameserver 移除即可。该 IP 地址也可能是本地网络中的路由。
+
+### 7.5.3. 配置系统主机名称
+
+```
+echo "lfs9.0" > /etc/hostname
+```
+
+lfs9.0 可以替换为你想要设置的名称。请不要输入完整域名（Fully Qualified Domain Name，FQDN），那应该是放在 /etc/hosts 文件中的信息。
+
+### 7.5.4. 定制文件 /etc/hosts
+
+文件 /etc/hosts 用于 IP 地址和完全限定域名（FQDN）及可能的别名的对应。
+
+除非计算机在互联网中可见（例如拥有注册的域名且分配了有效的 IP 地址——大部分用户并不具备此条件），否则请确保 IP 地址位于有效的私有网络 IP 地址段。有效区间为：
+
+```
+私有网络地址范围      常规前缀
+10.0.0.1 - 10.255.255.254           8
+172.x.0.1 - 172.x.255.254           16
+192.168.y.1 - 192.168.y.254         24
+x 可以是 16-31 中的任何数字，y 可以是 0-255 中的任何数字。
+```
+
+有效的私有 IP 地址可以是 192.168.1.1，有效的完全限定域名可以是 lfs.example.org。
+
+即使不需要使用网卡，也应该需要有效的完全限定域名。它的存在可以确保程序能正常运行。
+
+通过以下命令建立 /etc/hosts 文件：
+
+```
+cat > /etc/hosts << "EOF"
+# Begin /etc/hosts
+
+127.0.0.1 localhost
+# 127.0.1.1 <FQDN> <HOSTNAME>
+# <192.168.1.1> <FQDN> <HOSTNAME> [alias1] [alias2 ...]
+172.18.253.20 lfs9.0
+::1       localhost ip6-localhost ip6-loopback
+ff02::1   ip6-allnodes
+ff02::2   ip6-allrouters
+
+# End /etc/hosts
+EOF
+```
+
+其中，<192.168.1.1>，< FQDN >，和 < HOSTNAME > 的值应该根据用户和实际需要进行更改（如果已经通过网络/系统管理员获得了 IP 地址，那么设备就可以连接到已存在的网络）。其中可选的别名可以忽略。
+
+
+## 7.6. System V 启动脚本的运用与配置
+
+### 7.6.1. System V 的启动脚本是如何工作的？
+
+SysVinit（或称「init」）以运行级的方案运作。内含 7 个（数字 0-6）运行级，（事实上还有更多的运行级，但那些运行级情况特殊，且不常用。详情参见 init(8)），其中的每一个数字，都对应着一个计算机启动时的操作。默认的运行级是 3。下列为不同运行级所对应功能的描述：
+
+0: 关闭计算机
+1: 单用户模式
+2: 多用户模式无网络
+3: 多用户模式含网络
+4: 预留模式，如无定制与 3 无异
+5: 与 4 无异，常用作 GUI（X 的 xdm 或 KDE 的 kdm）的登录
+6: 重启计算机
+
+
+### 7.6.2. 配置 Sysvinit
+
+在内核初始化的时候，无论是命令行指定运行的第一个程序，还是默认的 init。该程序会读入初始化文件 /etc/inittab。下面创建此文件：
+
+```
+cat > /etc/inittab << "EOF"
+# Begin /etc/inittab
+
+id:3:initdefault:
+
+si::sysinit:/etc/rc.d/init.d/rc S
+
+l0:0:wait:/etc/rc.d/init.d/rc 0
+l1:S1:wait:/etc/rc.d/init.d/rc 1
+l2:2:wait:/etc/rc.d/init.d/rc 2
+l3:3:wait:/etc/rc.d/init.d/rc 3
+l4:4:wait:/etc/rc.d/init.d/rc 4
+l5:5:wait:/etc/rc.d/init.d/rc 5
+l6:6:wait:/etc/rc.d/init.d/rc 6
+
+ca:12345:ctrlaltdel:/sbin/shutdown -t1 -a -r now
+
+su:S016:once:/sbin/sulogin
+
+1:2345:respawn:/sbin/agetty --noclear tty1 9600
+2:2345:respawn:/sbin/agetty tty2 9600
+3:2345:respawn:/sbin/agetty tty3 9600
+4:2345:respawn:/sbin/agetty tty4 9600
+5:2345:respawn:/sbin/agetty tty5 9600
+6:2345:respawn:/sbin/agetty tty6 9600
+
+# End /etc/inittab
+EOF
+```
+
+初始化文件的解释可以参考 inittab 的 man 手册页面。对于LFS，运行的核心命令是 rc。上面的初始化文件将指示 rc 运行 /etc/rc.d/rcS.d 目录中，所有以 S 开头的脚本，然后便是 /etc/rc.d/rc?.d 目录中，所有以 S 开头的脚本。目录中的问号由指定的 initdefault 值来决定。
+
+为了方便，rc 会从 /lib/lsb/init-functions 中读取函数库。该库还会读取一个可选的配置文件 /etc/sysconfig/rc.site。任何在后续章节中描述到的系统配置文件中的参数，都可以放在这个文件中，允许将所有的系统参数合并到该文件中。
+
+为了调试方便，函数脚本会将日志输出到 /run/var/bootlog 文件中。由于 /run 目录是个 tmpfs（临时文件系统），所以该文件在启动之后就不会持续存在了，但在启动过程的最后，这些内容会被添附到更为持久的 /var/log/boot.log 文件中。
+
+#### 7.6.2.1. 改变运行级
+
+想要改变运行级，可以使用命令 init <runlevel>，其中的 <runlevel> 便是想要切换到的运行级。举个例子，若是想要重启计算机，可以使用命令 init 6，这是 reboot 命令的别名。就像，init 0 是 halt 的别名一样。
+
+/etc/rc.d 下有许多看起来像 rc?.d 的目录（其中的 ? 便是运行级）以及 rcsysinit.d，这些目录下包含了许多符号链接。它们有些以 K 开头，另一些的以 S 开头，首字母的后面都有两位数字。其中的 K 意味着停止（杀死）服务，S 意味着启动服务。而这些数字则决定了脚本的运行顺序，从 00 至 99——数字越小的将越先被执行。当 init 切换到另一个运行级时，相应的服务将会依据运行级启动或停止。
+
+真正的脚本放在 /etc/rc.d/init.d 目录中。那些链接全部指向它们，真正工作的便是它们。K 开头的链接和 S 开头的链接指向的其实是 /etc/rc.d/init.d 目录中的同一个脚本。能这样的原因是脚本可以用不同的参数调用，例如 start，stop，restart，reload 和 status。当遇到的链接是 K 开头的话，便相应执行脚本的 stop 参数。当遇到的链接是 S 开头的话，便相应执行脚本的 start 参数。
+
+还有一种情况刚才没有提及。那便是 rc0.d 和 rc6.d 目录中以 S 开头的链接是不会导致任何服务被启动的。它们只会调用 stop 参数去停止某些服务。这背后的隐含逻辑便是，当用户打算重起或是关闭系统时，无需去启动些什么。系统仅仅是需要被停止而已。
+
+### 7.6.3. udev 启动脚本
+
+启动脚本 /etc/rc.d/init.d/udev 启动 udevd，触发已经被内核创建好的「冷插拔（coldplug）」设备，并等待规则完成。该脚本还会解除 /sbin/hotplug 中默认的 uevent 处理。这是因为内核不再需要调用外部的二进制文件了。取而代之的是，udevd 会为内核引发的 uevent 去监听 netlink 的套接字。
+
+初始化脚本 /etc/rc.d/init.d/udev_retry 负责重新触发子系统的事件，这些子系统的规则，可能会依赖于直到 mountfs 脚本运行后才挂载的文件系统（特别是 /usr 和 /var）。该脚本会在 mountfs 脚本后运行，所以这些规则（若是被重新触发）应该会在第二次的时候成功。这些被配置在 /etc/sysconfig/udev_retry 文件中；这个文件中，除了注释以外的任何单词（word），都会被认为是在重试时触发的子系统名称。想要找到设备的子系统，使用 udevadm info --attribute-walk <device>，其中的 <device> 是 /dev 或 /sys 中的绝对路径，例如，/dev/sr0 或是 /sys/class/rtc。
+
+关于内核模块载入和 udev 的更多信息，请查看 第 7.3.2.3 节 「加载模块」。
+
+### 7.6.4. 配置系统时钟
+
+setclock 脚本从硬件时钟，或称 BIOS 或 CMOS（互补金属氧化物半导体）时钟中，读取时间。如果硬件时钟被设置为 UTC，该脚本会使用 /etc/localtime 文件（它会告知程序 hwclock 用户的时区）将硬件时钟的时间转换为本地时间。因为无法检测硬件时钟是否为 UTC，所以需要手动去配置。
+
+```
+cat > /etc/sysconfig/clock << "EOF"
+# Begin /etc/sysconfig/clock
+
+UTC=1
+
+# Set this to any options you might need to give to hwclock,
+# such as machine hardware clock type for Alphas.
+CLOCKPARAMS=
+
+# End /etc/sysconfig/clock
+EOF
+```
+
+### 7.6.5. 配置 Linux 控制台
+
+有时，希望在启动时创建文件。例如，/tmp/.ICE-unix 目录就可能需要创建。这可以通过在 /etc/sysconfig/createfiles 配置脚本中创建一个条目来达成。该文件的格式可以参考默认配置文件中的注释。
+
+- 对于中文，日语，韩语以及一些其他的语言需要的字符，Linux 的控制台还无法通过配置是之正常显示。用户若要使用这些语言，需要安装 X Window 系统，用于扩充所需字符域的字体，以及合适的输入法（例如，支持语言十分广泛的 SCIM）。
+
+>> 注意
+>
+> /etc/sysconfig/console 文件只负责 Linux 文本控制台的本地化。对于 X Window 系统，通过 ssh 的会话，以及串口的控制台的键盘布局和终端字体，以上的设定并不适用。
+
+### 7.6.6. 在启动时创建文件
+
+有时，希望在启动时创建文件。例如，/tmp/.ICE-unix 目录就可能需要创建。这可以通过在 /etc/sysconfig/createfiles 配置脚本中创建一个条目来达成。该文件的格式可以参考默认配置文件中的注释。
+
+### 7.6.7. 配置 sysklogd 脚本
+sysklogd 脚本调用 syslogd 程序作为 System V 初始化的一部分。-m 0 选项会关闭 syslogd默认每 20 分钟写一次日志的时间戳标记。如果你想要开启周期性的时间戳标记，编辑 /etc/sysconfig/rc.site 并定义变量 SYSKLOGD_PARMS 设为需要的值。例如，想要清除所有的参数，只需把变量设置为空值：
+
+SYSKLOGD_PARMS=
+运行 man syslogd，查看更多选项。
+
+### 7.6.8. 文件 rc.site
+
+可选的 /etc/sysconfig/rc.site 文件中包含着那些为每个 System V 启动脚本自动设置好的设定。这些设定也可以在 /etc/sysconfig/ 目录中的 hostname，console，和clock 文件中设置。如果这些设定值同时在以上的这些文件和 rc.site 中设定了，那么脚本中的设定值将会被优先采用。
+
+rc.site 中还包含了另外一些可以自定义的启动过程的参数。设置 IPROMPT 变量会启用启动脚本的选择性运行。其他的选项，在文件的注释中有所描述。文件的默认版本如下所示：
+
+```
+# rc.site
+# Optional parameters for boot scripts.
+
+# Distro Information
+# These values, if specified here, override the defaults
+#DISTRO="Linux From Scratch" # The distro name
+#DISTRO_CONTACT="lfs-dev@linuxfromscratch.org" # Bug report address
+#DISTRO_MINI="LFS" # Short name used in filenames for distro config
+
+# Define custom colors used in messages printed to the screen
+
+# Please consult `man console_codes` for more information
+# under the "ECMA-48 Set Graphics Rendition" section
+#
+# Warning: when switching from a 8bit to a 9bit font,
+# the linux console will reinterpret the bold (1;) to
+# the top 256 glyphs of the 9bit font.  This does
+# not affect framebuffer consoles
+
+# These values, if specified here, override the defaults
+#BRACKET="\\033[1;34m" # Blue
+#FAILURE="\\033[1;31m" # Red
+#INFO="\\033[1;36m"    # Cyan
+#NORMAL="\\033[0;39m"  # Grey
+#SUCCESS="\\033[1;32m" # Green
+#WARNING="\\033[1;33m" # Yellow
+
+# Use a colored prefix
+# These values, if specified here, override the defaults
+#BMPREFIX="      "
+#SUCCESS_PREFIX="${SUCCESS}  *  ${NORMAL} "
+#FAILURE_PREFIX="${FAILURE}*****${NORMAL} "
+#WARNING_PREFIX="${WARNING} *** ${NORMAL} "
+
+# Manually seet the right edge of message output (characters)
+# Useful when resetting console font during boot to override
+# automatic screen width detection
+#COLUMNS=120
+
+# Interactive startup
+#IPROMPT="yes" # Whether to display the interactive boot prompt
+#itime="3"    # The amount of time (in seconds) to display the prompt
+
+# The total length of the distro welcome string, without escape codes
+#wlen=$(echo "Welcome to ${DISTRO}" | wc -c )
+#welcome_message="Welcome to ${INFO}${DISTRO}${NORMAL}"
+
+# The total length of the interactive string, without escape codes
+#ilen=$(echo "Press 'I' to enter interactive startup" | wc -c )
+#i_message="Press '${FAILURE}I${NORMAL}' to enter interactive startup"
+
+# Set scripts to skip the file system check on reboot
+#FASTBOOT=yes
+
+# Skip reading from the console
+#HEADLESS=yes
+
+# Write out fsck progress if yes
+#VERBOSE_FSCK=no
+
+# Speed up boot without waiting for settle in udev
+#OMIT_UDEV_SETTLE=y
+
+# Speed up boot without waiting for settle in udev_retry
+#OMIT_UDEV_RETRY_SETTLE=yes
+
+# Skip cleaning /tmp if yes
+#SKIPTMPCLEAN=no
+
+# For setclock
+#UTC=1
+#CLOCKPARAMS=
+
+# For consolelog (Note that the default, 7=debug, is noisy)
+#LOGLEVEL=7
+
+# For network
+#HOSTNAME=mylfs
+
+# Delay between TERM and KILL signals at shutdown
+#KILLDELAY=3
+
+# Optional sysklogd parameters
+#SYSKLOGD_PARMS="-m 0"
+
+# Console parameters
+#UNICODE=1
+#KEYMAP="de-latin1"
+#KEYMAP_CORRECTIONS="euro2"
+#FONT="lat0-16 -m 8859-15"
+#LEGACY_CHARSET=
+```
+
+#### 7.6.8.1. 自定义启动和关闭的脚本
+
+LFS 启动脚本会以相当效率的方式启动和关闭系统，不过你可以在 rc.site 文件中进行调整，来提升速度或是根据需求调整消息。若是有这样的需求，就去调整上面 /etc/sysconfig/rc.site 文件的设置吧！
+
+在启动脚本 udev 运行时，会调用一次 udev settle，完成检测需要很长时间。这段时间根据当前系统的设备，可花可不花。如果你需要的仅仅是简单的分区和单个网卡，在启动的过程中，就没有必要等待这个命令执行。通过设置变量 OMIT_UDEV_SETTLE=y，可以跳过此命令。
+
+启动脚本 udev_retry 默认也执行udev settle。该命令仅在 /var 目录是分开挂载的情况下需要。因为这种情况下时钟需要文件 /var/lib/hwclock/adjtime。其他的自定义设置可能也需要等待 udev 执行完成，但是在许多的安装中不需要。设置变量 OMIT_UDEV_RETRY_SETTLE=y 跳过命令。
+
+默认情况下，文件系统检测静默执行。看上去就像是启动过程中的一个延迟。想要打开 fsck 的输出，设置变量。
+
+重起时，你可能想完全的跳过文件系统检测 fsck。为此，可以创建 /fastboot 文件或是以 /sbin/shutdown -f -r now 命令重启系统。另一方面，你也可以通过创建 /forcefsck，或是在运行 shutdown 命令时，用 -F 参数代替-f，以此来强制检测整个文件系统。
+
+设置变量 FASTBOOT=y 将禁用启动过程中的 fsck，直至你将其移除。不推荐长时间地使用该方式。
+
+通常，/tmp 目录中的所有文件会在启动时删除。根据存在目录与文件的数量，该操作会导致启动过程中明显的延迟。如果要跳过移除文件的操作，设置变量 SKIPTMPCLEAN=y。
+
+在关机的过程中，init 程序会向每一个已经启动的程序（例如，agetty）发送一个 TERM 信号，等一段时间（默认为 3 秒），然后给每个进程发送 KILL 信号。对没有被自身脚本关闭的进程，sendsignals 脚本会重复此过程。init 的延迟可以通过参数来设置。比方说，想去掉 init 的延迟，可以通过在关机或重启时使用 -t0 参数（如，/sbin/shutdown -t0 -r now）。sendsignals 脚本的延迟可以通过设置参数 KILLDELAY=0 跳过。
+
+## 7.7. Bash Shell 启动文件
+
