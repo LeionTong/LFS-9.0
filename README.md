@@ -9,3 +9,9 @@
 - Systemd
 
 [LFS-SYSD-9.0.md](LFS-SYSD-9.0.md)
+
+
+Todo:
+
+- lfs -> blfs
+- lfs-sysd-9.0
