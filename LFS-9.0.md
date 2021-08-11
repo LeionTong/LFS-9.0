@@ -4905,8 +4905,8 @@ EOF
 >>> LeionTong注：
 >
 > 介绍两种灵活的方法：
-> 1. 如果宿主机上有 Windows 系统，可以使用 EasyBCD 的 NeoGrub 引导LFS系统。
-> 2. 如果U盘里有 WinPE 系统，可以使用 Grub4Dos 或 Xorboot-UEFI 搭配 BootICE 来管理启动引导项。
+> 1. 如果宿主机上有其它 Linux 系统 ( Ubuntu 或 ArchLinux 等)，可以使用已安装好的 Grub2 引导 LFS 系统（只需要在宿主机上的 Linux 系统上执行 grub-mkconfig -o /boot/grub/grub.cfg 命令可以自动更新配置文件）。
+> 2. 如果有 Windows 或者 PE 系统，可以使用 Grub4Dos (Legacy-BIOS)  + BootICE 或者 Xorboot-UEFI (UEFI) 来管理启动引导项。
 
 >> 注意
 >
