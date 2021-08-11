@@ -4906,7 +4906,7 @@ EOF
 >
 > 介绍两种灵活的方法：
 > 1. 如果宿主机上有 Windows 系统，可以使用 EasyBCD 的 NeoGrub 引导LFS系统。
-> 2. 如果U盘里有 WinPE 系统，可以使用 XorBoot 或 Xorboot-UEFI 搭配 BootICE 来管理启动引导项。
+> 2. 如果U盘里有 WinPE 系统，可以使用 Grub4Dos 或 Xorboot-UEFI 搭配 BootICE 来管理启动引导项。
 
 >> 注意
 >
