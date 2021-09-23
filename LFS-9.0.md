@@ -98,7 +98,7 @@ echo 'export LFS=/mnt/lfs' > lfsrc
 ## 2.7. 挂载新分区
 
 ```
-mkidr -pv $LFS
+mkdir -pv $LFS
 mount -v -t ext4 /dev/sda8 $LFS
 mkdir -v $LFS/boot
 mount -v -t ext4 /dev/sda4 $LFS/boot
